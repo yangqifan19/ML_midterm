@@ -1,0 +1,200 @@
+---
+title: "Question 3"
+author: "Tony Yang"
+date: "2/22/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+a.	Use k-means clustering to identify clusters of cereals based on the available variables. Should you scale the variables?
+```{r message=FALSE,echo=FALSE}
+cereal <- read.csv('breakfast.csv',row.names=1)
+cereal$mfr <- as.factor(cereal$mfr)
+cereal$type <- as.factor(cereal$type)
+summary(cereal)
+```
+
+From the summary, it can be seen that variables are not on the same scale and since K-mean is sensitive to scale of columns, we should scale variables.
+
+```{r message=FALSE}
+cereal.scaled = scale(cereal[-(1:2)])
+
+pca <- prcomp(cereal.scaled)
+screeplot(pca, type="line")
+abline(h=1, lty=2)
+
+(pr.var = pca$sdev^2)
+(pve = pr.var / sum(pr.var))
+par(mfrow=c(1,2))
+plot(pve, xlab='Principal Component', 
+          ylab='Proportion of Variance Explained', 
+          ylim=c(0, 1), type='b')
+plot(cumsum(pve), xlab='Principal Component', 
+                  ylab ='Cumulative Proportion of Variance Explained',
+                  ylim = c(0, 1), type = 'b')
+
+par(mfrow=c(1,1))
+biplot(pca, scale=0, xlabs=rep("", nrow(cereal)))
+```
+
+Consider cluster using the first five pricipal components because those five can explain 80% of the variance.
+
+```{r message=FALSE}
+require(maptools)
+set.seed(1)
+cl <-  kmeans(pca$x[,1:5], centers=4, nstart=100)
+plot(pca$x[,1], 
+     pca$x[,2], 
+#     xlim=c(-3.5,4.5), ylim=c(-2.5,5),
+     type="n", 
+     xlab="PC1", ylab="PC2",
+     main="4-means clustering")
+pointLabel(pca$x[,1], 
+           pca$x[,2], 
+           labels = cereal$mfr,
+#           labels=rownames(cereal.scaled),
+           col=cl$cluster+1,
+           cex=0.6)
+
+legend("bottomleft", legend = c("1","2","3","4"), col=c(2,3,4,5), pch=19)
+```
+\newpage
+b.	How many clusters would you use? Describe the clusters you found.
+
+*Elbow method** 
+
+```{r message=F}
+library(factoextra) # clustering algorithms & visualization
+fviz_nbclust(pca$x[,1:5], kmeans, method = "wss") +
+    geom_vline(xintercept = 5, linetype = 2)
+```
+
+
+*Average silhouette method**
+
+```{r}
+fviz_nbclust(pca$x[,1:5], kmeans, method = "silhouette")
+```
+
+**Gap Statistics**
+
+```{r, warning=F, message=F}
+library(cluster)    
+gap_stat <- clusGap(pca$x[,1:5], FUN = kmeans, nstart = 50, K.max = 10, B = 50)
+print(gap_stat, method = "firstmax")
+```
+
+```{r}
+fviz_gap_stat(gap_stat)
+```
+
+
+**Let us try using all the variables**.
+
+
+*Elbow method** 
+
+```{r}
+fviz_nbclust(cereal.scaled, kmeans, method = "wss") +
+    geom_vline(xintercept = 2, linetype = 2)
+```
+
+
+
+*Average silhouette method**
+
+```{r}
+fviz_nbclust(cereal.scaled, kmeans, method = "silhouette")
+```
+
+
+
+**Gap Statistics**
+
+```{r, warning=F, message=F}
+library(cluster)    
+gap_stat <- clusGap(cereal.scaled, FUN = kmeans, nstart = 50, K.max = 10, B = 50)
+print(gap_stat, method = "firstmax")
+```
+
+```{r}
+fviz_gap_stat(gap_stat)
+```
+
+
+Choose number of clusters to be 5.
+```{r message=FALSE,echo=FALSE}
+set.seed(1)
+cl <-  kmeans(cereal.scaled, centers=5, nstart=100)
+plot(pca$x[,1], 
+     pca$x[,2], 
+#     xlim=c(-3.5,4.5), ylim=c(-2.5,5),
+     type="n", 
+     xlab="PC1", ylab="PC2",
+     main="5-means clustering")
+pointLabel(pca$x[,1], 
+           pca$x[,2], 
+           labels = cereal$mfr,
+#           labels=rownames(cereal.scaled),
+           col=cl$cluster+1,
+           cex=0.6)
+
+legend("bottomleft", legend = c("1","2","3","4","5"), col=c(2,3,4,5,6), pch=19)
+```
+
+Based on the elbow method and average silhouette method, cluster number of 5 is chosen to be most optimal. 
+
+**Cluster 1**
+```{r}
+rownames(cereal)[cl$cluster==1]
+```
+
+The first cluster consists of cereals high in sugar, low in protein, fiber and potassium. They have the lowest average ratings.
+
+**Cluster 2**
+```{r}
+rownames(cereal)[cl$cluster==2]
+```
+
+The second cluster consists of cereals low in sugar, fat and sodium.
+
+**Cluster 3**
+```{r}
+rownames(cereal)[cl$cluster==3]
+```
+
+The third cluster consists of cereals high in sodium and carbo, and low in fiber.
+
+**Cluster 4**
+```{r}
+rownames(cereal)[cl$cluster==4]
+```
+
+The fourth cluster consists of cereals labeled as 'all-bran' and are high in protein, fiber, and potass, and low in calories and number of cubs per serving. They have the highest average rating. 
+
+**Cluster 5**
+```{r}
+rownames(cereal)[cl$cluster==5]
+```
+
+The fifth cluster consisits of cereals high in calories, fat, weight per serving, and have the second lowest average rating. 
+
+\newpage
+c.	The elementary public schools would like to choose a set of cereals to include in their daily cafeterias. Every day a different cereal is offered, but all cereals should support a healthy diet. For this goal, you are requested to find a cluster of “healthy cereals.”
+
+```{r message=FALSE,echo=FALSE}
+cereal$cluster <- cl$cluster
+par(mfrow=c(2,2))
+for(c in names(cereal[-c(1,2,16)])){
+  boxplot(cereal[,paste0(c)]~cereal$cluster,ylab=c)
+}
+```
+
+Here we define a healthy diet as high take in protein, fiber, vitamin and low in sugar, fat and carbo. 
+The 4th cluster is the most healthy cluster among all 5. However, it has only 3 cereals, thus it cannot meet the requirement of different cereal each day. The 2nd cluster is chosen because it is relatively high in protein, fiber, and relatively low in sugar, fat and carbo and it has 18 different types of cereals. 
+
